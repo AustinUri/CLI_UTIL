@@ -1,8 +1,6 @@
-use dirs::home_dir;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
-
+use walkdir::WalkDir;
 fn main() {
     println!("This is Uri's command line project in Rust - enjoy");
     let current_dir = env::current_dir().unwrap();
@@ -23,11 +21,18 @@ fn main() {
                 }
             }
             Some("ls") | Some("dir") => {
-                if let Err(err) = list_directory(&current_dir) {
-                    println!("Error listing directory - {}", err);
+                if let Some(target) = args.next() {
+                    if let Err(err) = find(target) {
+                        println!("Error during find: {}", err);
+                    }
+                } else {
+                    println!("Usage: find <name>");
                 }
             }
-            Some("echo") => {}
+            Some("echo") => {
+                let echo_text: String = args.collect::<Vec<&str>>().join(" ");
+                println!("{}", echo_text);
+            }
             Some("cd") => {}
             Some("pwd") => {
                 println!("{}", current_dir.display());
@@ -62,44 +67,33 @@ fn print_help() {
 
 //fn grep(File: String , target:) {} still don't know the type of this..
 
-fn list_directory(path: &PathBuf) -> Result<(), io::Error> {
-    let entries = fs::read_dir(path)?
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>()?;
+fn list_directory(path: &str) -> Result<(), io::Error> {
+    let entries = WalkDir::new(path)
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok());
 
     for entry in entries {
-        println!("{}", entry.display());
+        println!("{}", entry.path().display());
     }
 
     Ok(())
 }
 
 fn find(target: &str) -> Result<(), io::Error> {
-    if let Some(home_path) = home_dir() {
-        search_directory(&home_path, target)
-    } else {
-        println!("Could not find the home directory.");
-        Ok(())
-    }
-}
+    let entries = WalkDir::new("/")
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok());
 
-fn search_directory(root: &Path, target: &str) -> Result<(), io::Error> {
-    if root.is_dir() {
-        for entry in fs::read_dir(root)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                // If it's a directory, search recursively
-                if let Err(err) = search_directory(&path, target) {
-                    println!("Error searching directory {}: {}", path.display(), err);
-                }
-            }
-            if let Some(file_name) = path.file_name() {
-                if file_name.to_string_lossy().contains(target) {
-                    println!("{}", path.display());
-                }
+    for entry in entries {
+        let path = entry.path();
+        if let Some(file_name) = path.file_name() {
+            if file_name.to_string_lossy().contains(target) {
+                println!("{}", path.display());
             }
         }
     }
+
     Ok(())
 }
