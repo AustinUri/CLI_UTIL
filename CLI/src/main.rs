@@ -13,6 +13,7 @@ fn main() {
             Some("grep") => {}
             Some("find") => {
                 if let Some(target) = args.next() {
+                    //println!("{}", target);
                     if let Err(err) = find(target) {
                         println!("Error during find: {}", err);
                     }
@@ -21,12 +22,8 @@ fn main() {
                 }
             }
             Some("ls") | Some("dir") => {
-                if let Some(target) = args.next() {
-                    if let Err(err) = find(target) {
-                        println!("Error during find: {}", err);
-                    }
-                } else {
-                    println!("Usage: find <name>");
+                if let Err(err) = list_directory(".") {
+                    println!("Error listing directory - {}", err);
                 }
             }
             Some("echo") => {
@@ -81,19 +78,18 @@ fn list_directory(path: &str) -> Result<(), io::Error> {
 }
 
 fn find(target: &str) -> Result<(), io::Error> {
-    let entries = WalkDir::new("/")
-        .follow_links(true)
-        .into_iter()
-        .filter_map(|e| e.ok());
+    println!("Searching for: {}", target);
 
-    for entry in entries {
+    for entry in WalkDir::new("/").into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        if let Some(file_name) = path.file_name() {
-            if file_name.to_string_lossy().contains(target) {
-                println!("{}", path.display());
-            }
+
+        // Convert filename to lowercase for case-insensitive search
+        let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
+
+        // Check if the filename contains the target (case-insensitive)
+        if file_name.contains(&target) {
+            println!("{}", path.display());
         }
     }
-
     Ok(())
 }
