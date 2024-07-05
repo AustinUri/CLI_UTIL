@@ -1,4 +1,5 @@
 use colored::*;
+use std::io::BufRead;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{env, fs, io};
@@ -14,7 +15,15 @@ fn main() {
         match args.next() {
             Some("exit") => break,
             Some("help") => print_help(),
-            Some("grep") => {}
+            Some("grep") => {
+                if let (Some(filename), Some(pattern)) = (args.next(), args.next()) {
+                    if let Err(err) = grep(filename, pattern) {
+                        println!("Error during grep: {}", err);
+                    }
+                } else {
+                    println!("Usage: grep <filename> <word_to_emphesize>");
+                }
+            }
             Some("find") => {
                 if let Some(target) = args.next() {
                     if let Err(err) = find(&current_dir, target) {
@@ -70,7 +79,7 @@ fn print_help() {
     println!(
         "---HELP--- \n
     the command - explanation - format
-    _______________________________
+    ___________________________________
     1)grep - matches text in files - grep <filename> <word_to_emphesize>\n
     2)echo - reapets input - echo <input>\n
     3)find - locates files or directories - find <file/directory path>\n
@@ -78,12 +87,32 @@ fn print_help() {
     5)exit/EXIT - exits program - exit/EXIT \n
     6)help/HELP - prints explanation of all the commands and their format - help/HELP\n
     7)cd - change directory - cd  <directory> , cd '..' to get out of the current directory\n
-    8)cat - prints a file - cat <filename> \n"
+    8)cat - prints a file - cat <filename> \n
+    9)mv - moves a file location(from current dir to another - mv <filename> <target_repo>\n
+    10)rm - deletes a file - rm <filename> \n
+    11)rmdir - deletes a repository(needs to have access) - rmdir <path> \n
+    12)cratefile - creates a file - \n
+    13)rename - renames a file or a repo - rename <file/repo> <new_name>\n
+    "
     )
 }
 
-fn grep(File: String , target:) {} still don't know the type of this..
+fn grep(filename: &str, pattern: &str) -> Result<(), io::Error> {
+    let file = fs::File::open(filename)?;
+    let reader = io::BufReader::new(file);
+    let mut count = 0;
 
+    for (index, line) in reader.lines().enumerate() {
+        let line = line?;
+        if line.contains(pattern) {
+            count += 1;
+            println!("{}: {}", index + 1, line);
+        }
+    }
+
+    println!("Occurrences of '{}': {}", pattern, count);
+    Ok(())
+}
 fn list_directory(path: &str) -> Result<(), io::Error> {
     let entries = fs::read_dir(path)?;
 
@@ -137,9 +166,15 @@ fn cat(current_dir: &Path, filename: &str) -> Result<(), io::Error> {
     file_path.push(filename);
 
     let contents = fs::read_to_string(file_path)?;
-    println!("{}", contents.red());
+    println!("{}", contents.red().on_black());
 
     Ok(())
 }
 
+//fn rm
 
+//fn createFile
+
+//fn rename
+
+//fn move
