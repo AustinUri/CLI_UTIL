@@ -97,6 +97,16 @@ fn main() {
                     println!("{}", "Usage: mv <source> <destination>".yellow());
                 }
             }
+            Some("makefile") => {
+                if let Some(filename) = args.next() {
+                    let ext = args.next().unwrap_or("txt");
+                    if let Err(err) = makefile(&mut current_dir, filename, ext) {
+                        println!("{}: {}", "Error creating file".red(), err);
+                    }
+                } else {
+                    println!("{}", "Usage: makefile <filename> [extension]".yellow());
+                }
+            }
             _ => print_help(),
         }
     }
@@ -143,6 +153,7 @@ fn print_help() {
         "{}",
         "11) mv - moves a file - mv <source> <destination>".yellow()
     );
+    println!("{}","12) makefile - creates a file with an optional extension - makefile <filename> [extension]".yellow());
 }
 
 fn list_directory(path: &Path) -> Result<(), io::Error> {
@@ -269,4 +280,20 @@ fn move_file(current_dir: &Path, src: &str, dest: &str) -> Result<(), io::Error>
             "Source file not found",
         ))
     }
+}
+
+fn makefile(current_dir: &mut PathBuf, filename: &str, ext: &str) -> Result<(), io::Error> {
+    let mut file_path = current_dir.clone();
+    file_path.push(format!("{}.{}", filename, ext));
+
+    // Create an empty file
+    let file = fs::File::create(&file_path)?;
+
+    println!(
+        "{} {}",
+        "File created successfully:".green(),
+        file_path.display()
+    );
+
+    Ok(())
 }
