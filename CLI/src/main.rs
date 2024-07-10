@@ -247,6 +247,11 @@ fn delete_directory(current_dir: &PathBuf, dirname: &str) -> Result<(), Box<dyn 
     let mut dir_path = current_dir.clone();
     dir_path.push(dirname);
 
+    // Ensure we are not deleting the current directory
+    if dir_path == *current_dir {
+        return Err("Cannot delete the current working directory".into());
+    }
+
     fs::remove_dir_all(dir_path)?;
     println!("{}", "Directory deleted successfully".green());
 
