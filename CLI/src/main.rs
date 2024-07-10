@@ -1,121 +1,116 @@
 use colored::*;
-use std::io::BufRead;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::{env, fs, io};
+use std::error::Error;
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf; // Make sure to add the 'colored' crate to Cargo.toml
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut current_dir = std::env::current_dir()?;
+
     println!(
         "{}",
         "Welcome to Uri's Command Line Project in Rust - Enjoy!"
             .bold()
             .blue()
     );
-    let mut current_dir = env::current_dir().unwrap();
-    loop {
-        // Print the current directory and prompt with blue text and a black background
-        print!("{}> ", current_dir.display().to_string().blue().on_black());
-        io::stdout().flush().unwrap();
 
-        let input: String = get_input().to_lowercase();
+    loop {
+        print!("{}> ", current_dir.display().to_string().blue().on_black());
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim();
+
+        if input.is_empty() {
+            continue;
+        }
+
         let mut args = input.split_whitespace();
-        match args.next() {
+        let command = args.next();
+
+        match command {
             Some("exit") => break,
             Some("help") => print_help(),
-            Some("grep") => {
-                if let (Some(filename), Some(pattern)) = (args.next(), args.next()) {
-                    if let Err(err) = grep(filename, pattern) {
-                        println!("{}: {}", "Error during grep".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: grep <filename> <word_to_emphesize>".yellow());
-                }
-            }
-            Some("find") => {
-                if let Some(target) = args.next() {
-                    if let Err(err) = find(&current_dir, target) {
-                        println!("{}: {}", "Error during find".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: find <name>".yellow());
-                }
-            }
-            Some("ls") | Some("dir") => {
-                if let Err(err) = list_directory(&current_dir) {
-                    println!("{}: {}", "Error listing directory".red(), err);
-                }
-            }
-            Some("echo") => {
+            Some("grep") => handle_command(&mut args, |args| {
+                let filename = args.next().ok_or("Usage: grep <filename> <pattern>")?;
+                let pattern = args.next().ok_or("Usage: grep <filename> <pattern>")?;
+                grep(filename, pattern)?;
+                Ok(())
+            })?,
+            Some("find") => handle_command(&mut args, |args| {
+                let target = args.next().ok_or("Usage: find <target>")?;
+                find(&current_dir, target)?;
+                Ok(())
+            })?,
+            Some("ls") | Some("dir") => handle_command(&mut args, |_| {
+                list_directory(&current_dir)?;
+                Ok(())
+            })?,
+            Some("echo") => handle_command(&mut args, |args| {
                 let echo_text: String = args.collect::<Vec<&str>>().join(" ");
                 println!("{}", echo_text.green());
-            }
-            Some("cd") => {
-                if let Some(target) = args.next() {
-                    if let Err(err) = change_directory(&mut current_dir, target) {
-                        println!("{}: {}", "Error changing directory".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: cd <directory>".yellow());
-                }
-            }
-            Some("pwd") => {
+                Ok(())
+            })?,
+            Some("cd") => handle_command(&mut args, |args| {
+                let target = args.next().ok_or("Usage: cd <directory>")?;
+                change_directory(&mut current_dir, target)?;
+                Ok(())
+            })?,
+            Some("pwd") => handle_command(&mut args, |_| {
                 println!("{}", current_dir.display().to_string().cyan());
-            }
-            Some("cat") => {
-                if let Some(filename) = args.next() {
-                    if let Err(err) = cat(&current_dir, filename) {
-                        println!("{}: {}", "Error reading file".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: cat <filename>".yellow());
-                }
-            }
-            Some("del") | Some("rm") => {
-                if let Some(filename) = args.next() {
-                    if let Err(err) = delete_file(&current_dir, filename) {
-                        println!("{}: {}", "Error deleting file".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: del/rm <filename>".yellow());
-                }
-            }
-            Some("rmdir") => {
-                if let Some(dirname) = args.next() {
-                    if let Err(err) = delete_directory(&current_dir, dirname) {
-                        println!("{}: {}", "Error deleting directory".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: rmdir <directory>".yellow());
-                }
-            }
-            Some("mv") => {
-                if let (Some(src), Some(dest)) = (args.next(), args.next()) {
-                    if let Err(err) = move_file(&current_dir, src, dest) {
-                        println!("{}: {}", "Error moving file".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: mv <source> <destination>".yellow());
-                }
-            }
-            Some("makefile") => {
-                if let Some(filename) = args.next() {
-                    let ext = args.next().unwrap_or("txt");
-                    if let Err(err) = makefile(&mut current_dir, filename, ext) {
-                        println!("{}: {}", "Error creating file".red(), err);
-                    }
-                } else {
-                    println!("{}", "Usage: makefile <filename> [extension]".yellow());
-                }
-            }
-            _ => print_help(),
+                Ok(())
+            })?,
+            Some("cat") => handle_command(&mut args, |args| {
+                let filename = args.next().ok_or("Usage: cat <filename>")?;
+                cat(&current_dir, filename)?;
+                Ok(())
+            })?,
+            Some("del") | Some("rm") => handle_command(&mut args, |args| {
+                let filename = args.next().ok_or("Usage: del/rm <filename>")?;
+                delete_file(&current_dir, filename)?;
+                Ok(())
+            })?,
+            Some("rmdir") => handle_command(&mut args, |args| {
+                let dirname = args.next().ok_or("Usage: rmdir <dirname>")?;
+                delete_directory(&current_dir, dirname)?;
+                Ok(())
+            })?,
+            Some("mv") => handle_command(&mut args, |args| {
+                let src = args.next().ok_or("Usage: mv <src> <dest>")?;
+                let dest = args.next().ok_or("Usage: mv <src> <dest>")?;
+                move_file(&current_dir, src, dest)?;
+                Ok(())
+            })?,
+            Some("makefile") => handle_command(&mut args, |args| {
+                let filename = args
+                    .next()
+                    .ok_or("Usage: makefile <filename> [extension]")?;
+                let ext = args.next().unwrap_or("txt");
+                makefile(&mut current_dir, filename, ext)?;
+                Ok(())
+            })?,
+            _ => println!(
+                "{}",
+                "Unknown command. Type 'help' for a list of commands.".red()
+            ),
         }
     }
+
+    Ok(())
 }
 
-fn get_input() -> String {
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input.trim().to_string()
+fn handle_command<F>(args: &mut std::str::SplitWhitespace, f: F) -> Result<(), Box<dyn Error>>
+where
+    F: FnOnce(&mut std::str::SplitWhitespace) -> Result<(), Box<dyn Error>>,
+{
+    match f(args) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            println!("{}", err.to_string().red());
+            Err(err)
+        }
+    }
 }
 
 fn print_help() {
@@ -123,7 +118,7 @@ fn print_help() {
     println!("{}", "Available commands:".bold());
     println!(
         "{}",
-        "1) grep - matches text in files - grep <filename> <word_to_emphesize>".yellow()
+        "1) grep - matches text in files - grep <filename> <word_to_emphasize>".yellow()
     );
     println!("{}", "2) echo - repeats input - echo <input>".yellow());
     println!(
@@ -153,77 +148,21 @@ fn print_help() {
         "{}",
         "11) mv - moves a file - mv <source> <destination>".yellow()
     );
-    println!("{}","12) makefile - creates a file with an optional extension - makefile <filename> [extension]".yellow());
+    println!(
+        "{}",
+        "12) makefile - creates a file with an optional extension - makefile <filename> [extension]"
+            .yellow()
+    );
 }
 
-fn list_directory(path: &Path) -> Result<(), io::Error> {
-    let entries = fs::read_dir(path)?;
-
-    for entry in entries {
-        let entry = entry?;
-        println!("{}", entry.path().display());
-    }
-
-    Ok(())
-}
-
-fn find(path: &Path, target: &str) -> Result<(), io::Error> {
-    if path.is_dir() {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                find(&path, target)?;
-            } else if path.file_name().unwrap().to_string_lossy().contains(target) {
-                println!("{}", path.display());
-            }
-        }
-    }
-    Ok(())
-}
-
-fn change_directory(current_dir: &mut PathBuf, target: &str) -> Result<(), io::Error> {
-    let new_dir = if target == ".." {
-        current_dir.pop();
-        current_dir.clone()
-    } else {
-        let mut new_path = current_dir.clone();
-        new_path.push(target);
-        new_path
-    };
-
-    if new_dir.is_dir() {
-        env::set_current_dir(&new_dir)?;
-        *current_dir = env::current_dir()?;
-        Ok(())
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Directory not found",
-        ))
-    }
-}
-
-fn cat(current_dir: &Path, filename: &str) -> Result<(), io::Error> {
-    let mut file_path = current_dir.to_path_buf();
-    file_path.push(filename);
-
-    let contents = fs::read_to_string(file_path)?;
-    println!("{}", contents.red());
-
-    Ok(())
-}
-
-fn grep(filename: &str, pattern: &str) -> Result<(), io::Error> {
-    let file = fs::File::open(filename)?;
-    let reader = io::BufReader::new(file);
+fn grep(filename: &str, pattern: &str) -> Result<(), Box<dyn Error>> {
+    let contents = fs::read_to_string(filename)?;
     let mut count = 0;
 
-    for (index, line) in reader.lines().enumerate() {
-        let line = line?;
+    for (index, line) in contents.lines().enumerate() {
         if line.contains(pattern) {
-            count += 1;
             println!("{}: {}", (index + 1).to_string().bold().magenta(), line);
+            count += 1;
         }
     }
 
@@ -232,68 +171,120 @@ fn grep(filename: &str, pattern: &str) -> Result<(), io::Error> {
         "Occurrences of".bold().green(),
         count.to_string().bold().green()
     );
+
     Ok(())
 }
 
-fn delete_file(current_dir: &Path, filename: &str) -> Result<(), io::Error> {
-    let mut file_path = current_dir.to_path_buf();
+fn find(current_dir: &PathBuf, target: &str) -> Result<(), Box<dyn Error>> {
+    let entries = fs::read_dir(current_dir)?;
+
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            if path.ends_with(target) {
+                println!("{}", path.display().to_string().green());
+            }
+            find(&path, target)?;
+        } else if path.ends_with(target) {
+            println!("{}", path.display().to_string().green());
+        }
+    }
+
+    Ok(())
+}
+
+fn list_directory(current_dir: &PathBuf) -> Result<(), Box<dyn Error>> {
+    let entries = fs::read_dir(current_dir)?;
+
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        println!("{}", path.display());
+    }
+
+    Ok(())
+}
+
+fn change_directory(current_dir: &mut PathBuf, target: &str) -> Result<(), Box<dyn Error>> {
+    if target == ".." {
+        current_dir.pop();
+    } else {
+        current_dir.push(target);
+        if !current_dir.is_dir() {
+            return Err(Box::new(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Directory not found",
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+fn cat(current_dir: &PathBuf, filename: &str) -> Result<(), Box<dyn Error>> {
+    let mut file_path = current_dir.clone();
     file_path.push(filename);
 
-    if file_path.is_file() {
-        fs::remove_file(file_path)?;
-        println!("{}", "File deleted successfully".green());
-        Ok(())
-    } else {
-        Err(io::Error::new(io::ErrorKind::NotFound, "File not found"))
-    }
+    let contents = fs::read_to_string(file_path)?;
+    println!("{}", contents.red());
+
+    Ok(())
 }
 
-fn delete_directory(current_dir: &Path, dirname: &str) -> Result<(), io::Error> {
-    let mut dir_path = current_dir.to_path_buf();
+fn delete_file(current_dir: &PathBuf, filename: &str) -> Result<(), Box<dyn Error>> {
+    let mut file_path = current_dir.clone();
+    file_path.push(filename);
+
+    fs::remove_file(file_path)?;
+    println!("{}", "File deleted successfully".green());
+
+    Ok(())
+}
+
+fn delete_directory(current_dir: &PathBuf, dirname: &str) -> Result<(), Box<dyn Error>> {
+    let mut dir_path = current_dir.clone();
     dir_path.push(dirname);
 
-    if dir_path.is_dir() {
-        fs::remove_dir_all(dir_path)?;
-        println!("{}", "Directory deleted successfully".green());
-        Ok(())
-    } else {
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Directory not found",
-        ))
-    }
+    fs::remove_dir_all(dir_path)?;
+    println!("{}", "Directory deleted successfully".green());
+
+    Ok(())
 }
 
-fn move_file(current_dir: &Path, src: &str, dest: &str) -> Result<(), io::Error> {
-    let mut src_path = current_dir.to_path_buf();
+fn move_file(current_dir: &PathBuf, src: &str, dest: &str) -> Result<(), Box<dyn Error>> {
+    let mut src_path = current_dir.clone();
     src_path.push(src);
 
-    let dest_path = PathBuf::from(dest);
+    let mut dest_path = current_dir.clone();
+    dest_path.push(dest);
 
-    if src_path.is_file() {
-        fs::rename(src_path, dest_path)?;
-        println!("{}", "File moved successfully".green());
-        Ok(())
+    // Check if destination is a directory
+    if dest_path.is_dir() {
+        dest_path.push(src); // Move the file into the directory
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "Source file not found",
-        ))
+        return Err(Box::new(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Destination is not a directory",
+        )));
     }
+
+    fs::rename(src_path, dest_path)?;
+    println!("{}", "File moved successfully".green());
+
+    Ok(())
 }
 
-fn makefile(current_dir: &mut PathBuf, filename: &str, ext: &str) -> Result<(), io::Error> {
+fn makefile(current_dir: &mut PathBuf, filename: &str, ext: &str) -> Result<(), Box<dyn Error>> {
     let mut file_path = current_dir.clone();
     file_path.push(format!("{}.{}", filename, ext));
-
-    // Create an empty file
-    let file = fs::File::create(&file_path)?;
-
+    fs::File::create(file_path)?;
     println!(
-        "{} {}",
-        "File created successfully:".green(),
-        file_path.display()
+        "{}",
+        format!("File {}.{} created successfully", filename, ext)
+            .green()
+            .bold()
     );
-
     Ok(())
 }
