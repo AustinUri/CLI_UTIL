@@ -2,7 +2,7 @@ use colored::*;
 use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf; // Make sure to add the 'colored' crate to Cargo.toml
+use std::path::{Path, PathBuf};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut current_dir = std::env::current_dir()?;
@@ -176,18 +176,50 @@ fn grep(filename: &str, pattern: &str) -> Result<(), Box<dyn Error>> {
 }
 
 fn find(current_dir: &PathBuf, target: &str) -> Result<(), Box<dyn Error>> {
-    let entries = fs::read_dir(current_dir)?;
+    let target_path = Path::new(target);
+
+    // Check if the target is a full path
+    if target_path.is_absolute() {
+        if target_path.exists() {
+            println!("{}", target_path.display().to_string().green());
+        } else {
+            println!("Path does not exist: {}", target);
+        }
+        return Ok(());
+    }
+
+    // Otherwise, perform a search in the current directory and subdirectories
+    let entries = match fs::read_dir(current_dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            if e.kind() == io::ErrorKind::PermissionDenied {
+                return Ok(());
+            } else {
+                return Err(e.into());
+            }
+        }
+    };
 
     for entry in entries {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.is_dir() {
-            if path.ends_with(target) {
-                println!("{}", path.display().to_string().green());
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                if e.kind() == io::ErrorKind::PermissionDenied {
+                    continue;
+                } else {
+                    return Err(e.into());
+                }
             }
+        };
+
+        let path = entry.path();
+        if path.is_dir() {
             find(&path, target)?;
-        } else if path.ends_with(target) {
+        } else if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map_or(false, |name| name.contains(target))
+        {
             println!("{}", path.display().to_string().green());
         }
     }
