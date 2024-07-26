@@ -325,3 +325,90 @@ fn makefile(current_dir: &mut PathBuf, filename: &str, ext: &str) -> Result<(), 
     );
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_grep() {
+        let temp_file = "test_grep.txt";
+        fs::write(temp_file, "Hello\nRust\nWorld\n").unwrap();
+        let result = grep(temp_file, "Rust");
+        fs::remove_file(temp_file).unwrap();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_find() {
+        let current_dir = env::current_dir().unwrap();
+        let result = find(&current_dir, "Cargo.toml");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_list_directory() {
+        let current_dir = env::current_dir().unwrap();
+        let result = list_directory(&current_dir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_change_directory() {
+        let mut current_dir = env::current_dir().unwrap();
+        let result = change_directory(&mut current_dir, "..");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_cat() {
+        let temp_file = "test_cat.txt";
+        fs::write(temp_file, "Hello, world!").unwrap();
+        let current_dir = env::current_dir().unwrap();
+        let result = cat(&current_dir, temp_file);
+        fs::remove_file(temp_file).unwrap();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_delete_file() {
+        let temp_file = "test_delete_file.txt";
+        fs::write(temp_file, "Hello, world!").unwrap();
+        let current_dir = env::current_dir().unwrap();
+        let result = delete_file(&current_dir, temp_file);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_delete_directory() {
+        let temp_dir = "test_delete_directory";
+        fs::create_dir(temp_dir).unwrap();
+        let current_dir = env::current_dir().unwrap();
+        let result = delete_directory(&current_dir, temp_dir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_move_file() {
+        let src_file = "test_src_file.txt";
+        let dest_dir = "test_dest_directory";
+        fs::write(src_file, "Hello, world!").unwrap();
+        fs::create_dir(dest_dir).unwrap();
+        let current_dir = env::current_dir().unwrap();
+        let result = move_file(&current_dir, src_file, dest_dir);
+        assert!(result.is_ok());
+        fs::remove_file(format!("{}/{}", dest_dir, src_file)).unwrap();
+        fs::remove_dir(dest_dir).unwrap();
+    }
+
+    #[test]
+    fn test_makefile() {
+        let filename = "test_makefile";
+        let ext = "txt";
+        let mut current_dir = env::current_dir().unwrap();
+        let result = makefile(&mut current_dir, filename, ext);
+        assert!(result.is_ok());
+        fs::remove_file(format!("{}.{}", filename, ext)).unwrap();
+    }
+}
