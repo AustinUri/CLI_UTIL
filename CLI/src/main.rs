@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+mod integration_tests;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut current_dir = std::env::current_dir()?;
@@ -23,66 +24,70 @@ fn main() -> Result<(), Box<dyn Error>> {
         let input = input.trim();
 
         if input.is_empty() {
-            continue;
+            break;
         }
 
         let mut args = input.split_whitespace();
         let command = args.next();
 
+        let Some(command) = command else {
+            break;
+        };
+
         match command {
-            Some("exit") => break,
-            Some("help") => print_help(),
-            Some("grep") => handle_command(&mut args, |args| {
+            "exit" => break,
+            "help" => print_help(),
+            "grep" => handle_command(&mut args, |args| {
                 let filename = args.next().ok_or("Usage: grep <filename> <pattern>")?;
                 let pattern = args.next().ok_or("Usage: grep <filename> <pattern>")?;
                 grep(filename, pattern)?;
                 Ok(())
             })?,
-            Some("find") => handle_command(&mut args, |args| {
+            "find" => handle_command(&mut args, |args| {
                 let target = args.next().ok_or("Usage: find <target>")?;
                 find(&current_dir, target)?;
                 Ok(())
             })?,
-            Some("ls") | Some("dir") => handle_command(&mut args, |_| {
+            "ls" | "dir" => handle_command(&mut args, |_| {
                 list_directory(&current_dir)?;
                 Ok(())
             })?,
-            Some("echo") => handle_command(&mut args, |args| {
+            "echo" => handle_command(&mut args, |args| {
                 let echo_text: String = args.collect::<Vec<&str>>().join(" ");
                 println!("{}", echo_text.green());
                 Ok(())
             })?,
-            Some("cd") => handle_command(&mut args, |args| {
+            "cd" => handle_command(&mut args, |args| {
                 let target = args.next().ok_or("Usage: cd <directory>")?;
                 change_directory(&mut current_dir, target)?;
                 Ok(())
             })?,
-            Some("pwd") => handle_command(&mut args, |_| {
+            "pwd" => handle_command(&mut args, |_| {
                 println!("{}", current_dir.display().to_string().cyan());
                 Ok(())
             })?,
-            Some("cat") => handle_command(&mut args, |args| {
+            "cat" => handle_command(&mut args, |args| {
                 let filename = args.next().ok_or("Usage: cat <filename>")?;
                 cat(&current_dir, filename)?;
                 Ok(())
             })?,
-            Some("del") | Some("rm") => handle_command(&mut args, |args| {
+            "del" | "rm" => handle_command(&mut args, |args| {
                 let filename = args.next().ok_or("Usage: del/rm <filename>")?;
                 delete_file(&current_dir, filename)?;
                 Ok(())
             })?,
-            Some("rmdir") => handle_command(&mut args, |args| {
+            "rmdir" => handle_command(&mut args, |args| {
                 let dirname = args.next().ok_or("Usage: rmdir <dirname>")?;
                 delete_directory(&current_dir, dirname)?;
                 Ok(())
             })?,
-            Some("mv") => handle_command(&mut args, |args| {
+            "mv" => handle_command(&mut args, |args| {
                 let src = args.next().ok_or("Usage: mv <src> <dest>")?;
                 let dest = args.next().ok_or("Usage: mv <src> <dest>")?;
                 move_file(&current_dir, src, dest)?;
                 Ok(())
             })?,
-            Some("makefile") => handle_command(&mut args, |args| {
+            "makefile" => handle_command(&mut args, |args| {
                 let filename = args
                     .next()
                     .ok_or("Usage: makefile <filename> [extension]")?;
